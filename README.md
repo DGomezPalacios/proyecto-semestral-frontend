@@ -101,18 +101,35 @@ proyecto-semestral-frontend/
 
 ### Acceso al Frontend en producción
 
-La aplicación está disponible públicamente a través de la instancia EC2-web:
-
 | URL | Descripción |
 |---|---|
-| http://3.83.173.99 | Frontend React en producción |
+| http://3.83.173.99:80 | Frontend React en producción |
 
-No se requiere puerto adicional; nginx sirve en el puerto 80 estándar.
+nginx sirve la aplicación en el puerto 80 estándar de la instancia EC2-web.
+
+### Imagen Docker Hub
+
+```bash
+# Imagen publicada en Docker Hub
+docker pull dgomezpalacios/proyecto-semestral-frontend:latest
+
+# Ejecutar directamente desde Docker Hub
+docker run -d -p 80:80 dgomezpalacios/proyecto-semestral-frontend:latest
+```
+
+En EC2-web el `docker-compose.yml` apunta a esta imagen, por lo que no se necesita build local:
+
+```bash
+docker-compose up -d   # descarga dgomezpalacios/proyecto-semestral-frontend:latest y levanta
+```
 
 ### Conexión a EC2-web
 
 ```bash
-# Conectar a EC2-web (instancia con IP pública)
+# Permisos correctos antes de conectar (Linux/Mac)
+chmod 400 devops-front.pem
+
+# Conectar a EC2-web (única instancia con IP pública)
 ssh -i devops-front.pem ec2-user@3.83.173.99
 
 # Verificar que nginx y el contenedor frontend están activos
@@ -123,57 +140,51 @@ docker-compose ps
 docker-compose logs -f frontend
 ```
 
-> Permisos del archivo de clave antes de conectar:
-> ```bash
-> chmod 400 devops-front.pem
-> ```
-
 ### Arquitectura de las 3 instancias
 
 ```
                         Internet
                            │
                            ▼
-             ┌─────────────────────────┐
-             │  EC2-web                │  IP Pública:  3.83.173.99
-             │  IP Privada: 10.0.12.224│
-             │  nginx + React (Docker) │
-             └────────────┬────────────┘
-                          │ VPC interna
-                          ▼
-             ┌─────────────────────────┐
-             │  EC2-app                │  IP Privada: 10.0.131.198
-             │  Spring Boot Despachos  │  Puerto 8081
-             │  Spring Boot Ventas     │  Puerto 8082
-             └────────────┬────────────┘
-                          │ VPC interna
-                          ▼
-             ┌─────────────────────────┐
-             │  EC2-datos              │  IP Privada: 10.0.145.181
-             │  MySQL 8.0              │  Puerto 3306
-             └─────────────────────────┘
-
-             VPC: proyecto-semestral-vpc
+             ┌───────────────────────────────┐
+             │  EC2-web    3.83.173.99:80    │  ← IP pública
+             │  Privada:   10.0.12.224       │
+             │  nginx + React (Docker Hub)   │
+             └──────────────┬────────────────┘
+                            │ VPC proyecto-semestral-vpc
+                            │     10.0.0.0/16
+                            ▼
+             ┌───────────────────────────────┐
+             │  EC2-app   10.0.131.198       │
+             │  Despachos  :8081             │
+             │  Ventas     :8082             │
+             └──────────────┬────────────────┘
+                            │ VPC interna
+                            ▼
+             ┌───────────────────────────────┐
+             │  EC2-datos  10.0.145.181      │
+             │  MySQL 8.0  :3306             │
+             └───────────────────────────────┘
 ```
 
 ### Flujo de conexión web → app → datos
 
-1. **Usuario** accede a `http://3.83.173.99` desde su navegador.
-2. **EC2-web** (nginx) sirve los archivos estáticos de React y actúa como reverse proxy para las llamadas a la API.
-3. **EC2-app** recibe las peticiones API en los puertos `8081` (Despachos) y `8082` (Ventas) via IP privada `10.0.131.198`.
+1. **Usuario** accede a `http://3.83.173.99:80` desde su navegador.
+2. **EC2-web** (nginx) sirve los archivos estáticos de React y enruta las llamadas API hacia EC2-app.
+3. **EC2-app** recibe las peticiones en los puertos `8081` (Despachos) y `8082` (Ventas) via IP privada `10.0.131.198`.
 4. **EC2-datos** responde las consultas SQL en el puerto `3306` via IP privada `10.0.145.181`.
 
-Todo el tráfico entre EC2-app y EC2-datos circula dentro de la VPC, sin exposición a internet.
+Todo el tráfico entre EC2-app y EC2-datos circula dentro de la VPC (`10.0.0.0/16`), sin exposición a internet.
 
 ### Endpoints disponibles desde el navegador
 
 | Recurso | URL |
 |---|---|
-| Frontend | http://3.83.173.99 |
-| API Despachos | http://3.83.173.99/api-despachos |
-| API Ventas | http://3.83.173.99/api-ventas |
-| Swagger Despachos | http://3.83.173.99/api-despachos/swagger-ui.html |
-| Swagger Ventas | http://3.83.173.99/api-ventas/swagger-ui.html |
+| Frontend | http://3.83.173.99:80 |
+| API Despachos | http://3.83.173.99:8081 |
+| API Ventas | http://3.83.173.99:8082 |
+| Swagger Despachos | http://3.83.173.99:8081/swagger-ui.html |
+| Swagger Ventas | http://3.83.173.99:8082/swagger-ui.html |
 
 ## Seguridad
 
