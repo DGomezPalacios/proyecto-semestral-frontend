@@ -3,7 +3,7 @@ name: CI/CD — Frontend ECS
 on:
   push:
     branches:
-      - main
+      - deploy
 
 jobs:
   build-and-deploy:
