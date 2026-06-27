@@ -200,3 +200,58 @@ El `Dockerfile` sigue el patrón multi-stage:
 2. **Stage runtime** (`nginx:alpine`): sirve los archivos estáticos del `dist/` generado.
 
 Este enfoque garantiza que la imagen de producción no contiene el código fuente, las herramientas de build ni `node_modules`.
+
+## ☁️ EP3 — Despliegue en AWS ECS Fargate
+
+### Arquitectura EP3
+El frontend migró de EC2 con Docker a AWS ECS Fargate con orquestación serverless.
+
+- **Orquestador:** AWS ECS Fargate
+- **Registry:** Amazon ECR (proyecto-semestral-frontend)
+- **Load Balancer:** Application Load Balancer (ALB)
+- **URL pública:** http://proyecto-semestral-alb-619727221.us-east-1.elb.amazonaws.com
+
+### Recursos AWS
+
+| Recurso | Nombre |
+|---------|--------|
+| Clúster ECS | proyecto-semestral-cluster |
+| Servicio ECS | frontend-service |
+| Task Definition | frontend-task:1 |
+| Repositorio ECR | proyecto-semestral-frontend |
+| Target Group | frontend-tg |
+| Región | us-east-1 |
+
+### Pipeline CI/CD (EP3)
+El pipeline se dispara automáticamente en cada push a la rama deploy:
+1. Build — construye la imagen Docker
+2. Push — sube la imagen a Amazon ECR con tag :latest y :<commit-sha>
+3. Deploy — ejecuta aws ecs update-service --force-new-deployment en ECS
+
+#### Secrets requeridos en GitHub
+| Secret | Descripción |
+|--------|-------------|
+| AWS_ACCESS_KEY_ID | Credencial AWS |
+| AWS_SECRET_ACCESS_KEY | Credencial AWS |
+| AWS_SESSION_TOKEN | Token de sesión AWS Academy |
+
+### Autoscaling ECS
+| Parámetro | Valor |
+|-----------|-------|
+| Tipo | Target Tracking Scaling |
+| Métrica | ECSServiceAverageCPUUtilization |
+| Umbral | 50% CPU |
+| Mínimo tasks | 1 |
+| Máximo tasks | 3 |
+| Cooldown | 60 segundos |
+
+### Logs
+Los logs del contenedor se envían automáticamente a CloudWatch Logs en el grupo /ecs/frontend.
+
+## 👥 Equipo
+- Daniela Gómez Palacios
+- Berta Soto Jerez
+
+**Curso:** ISY1101 — Introducción a Herramientas DevOps  
+**Profesor:** Álvaro Mellado Pimentel  
+**Instituto:** DuocUC — 2025
